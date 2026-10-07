@@ -5,3 +5,5 @@ app/node_modules/
 test-ledger/
 .anchor/
 scripts/node_modules/
+node_modules/
+app/bundle.js

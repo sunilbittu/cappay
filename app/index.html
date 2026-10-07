@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CapPay — idempotent agent payment</title>
+<style>
+  :root {
+    --bg: #0b0b10;
+    --panel: #14141c;
+    --border: #262633;
+    --text: #e8e8f0;
+    --dim: #8a8a9a;
+    --accent: #7c5cff;
+    --ok: #2fd08c;
+    --err: #ff5c7a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .card {
+    width: 100%;
+    max-width: 640px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 24px; }
+  .field { margin-bottom: 16px; }
+  label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 6px; }
+  input {
+    width: 100%;
+    background: #0e0e15;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .static {
+    background: #0e0e15;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    word-break: break-all;
+  }
+  .hint { font-size: 11px; color: var(--err); margin-top: 4px; min-height: 14px; }
+  .row { display: flex; gap: 10px; }
+  .row .field { flex: 1; }
+  button {
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    padding: 12px 18px;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 4px;
+  }
+  button.secondary { background: #23232f; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .buttons { display: flex; gap: 10px; margin-top: 8px; }
+  .buttons button { margin-top: 0; }
+  #payer { color: var(--dim); font-size: 11px; margin-top: 10px; }
+  #pdaStatus { color: var(--dim); font-size: 11px; margin-top: 18px; word-break: break-all; }
+  .result {
+    margin-top: 20px;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .result:empty { display: none; }
+  .result.ok { border-color: var(--ok); color: var(--ok); }
+  .result.err { border-color: var(--err); color: var(--err); }
+  .result pre { margin: 8px 0; white-space: pre-wrap; font: inherit; color: var(--text); }
+  .result a { color: var(--accent); display: block; margin-top: 8px; }
+  .result-title { font-weight: bold; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Cap<span>Pay</span></h1>
+    <div class="sub">
+      One merchant, one order id, one transfer. The idempotency key is (merchant, order_id),
+      enforced by an on-chain order account — a retry fails with OrderAlreadySettled.
+    </div>
+
+    <button id="connectBtn">Connect Backpack (devnet)</button>
+    <div id="payer"></div>
+
+    <div class="field" style="margin-top:20px">
+      <label>merchant (fixed, from README)</label>
+      <div class="static" id="merchant"></div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>order id (max 32 bytes)</label>
+        <input id="orderId" value="NL-10483" maxlength="64" />
+        <div class="hint" id="orderIdHint"></div>
+      </div>
+      <div class="field">
+        <label>amount (SOL)</label>
+        <input id="amount" value="0.01" inputmode="decimal" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>recipient (fixed, from README)</label>
+      <div class="static" id="recipient"></div>
+    </div>
+
+    <div class="buttons">
+      <button id="submitBtn" disabled>Submit payment</button>
+      <button id="doubleBtn" class="secondary" disabled>Double-fire test</button>
+    </div>
+
+    <div id="pdaStatus"></div>
+    <div id="result" class="result"></div>
+  </div>
+
+  <script src="bundle.js"></script>
+</body>
+</html>
