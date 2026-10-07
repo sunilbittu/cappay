@@ -89,6 +89,10 @@ async function connect() {
 
 async function signAndSend(transaction) {
   const feature = connected.wallet.features["solana:signAndSendTransaction"];
+  if (!transaction.recentBlockhash) {
+    const { blockhash } = await conn.getLatestBlockhash("confirmed");
+    transaction.recentBlockhash = blockhash;
+  }
   const txBytes = transaction.serialize({
     requireAllSignatures: false,
     verifySignatures: false,
