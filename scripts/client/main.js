@@ -111,13 +111,15 @@ async function signAndSend(transaction) {
 }
 
 async function pollSignature(signature) {
-  for (let i = 0; i < 40; i++) {
-    const st = await conn.getSignatureStatus(signature, {
-      searchTransactionHistory: true,
+  // getSignatureStatus is unreliable on devnet (returns null for landed txs);
+  // poll getTransaction (reads history) instead.
+  for (let i = 0; i < 45; i++) {
+    const tx = await conn.getTransaction(signature, {
+      maxSupportedTransactionVersion: 0,
     });
-    const v = st && st.value;
-    if (v && (v.confirmationStatus === "confirmed" || v.confirmationStatus === "finalized")) {
-      if (v.err) throw new Error("Transaction landed but failed: " + JSON.stringify(v.err));
+    if (tx) {
+      if (tx.meta && tx.meta.err)
+        throw new Error("Transaction landed but failed: " + JSON.stringify(tx.meta.err));
       return;
     }
     await new Promise((r) => setTimeout(r, 2000));
