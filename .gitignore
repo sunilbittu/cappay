@@ -4,3 +4,4 @@ app/node_modules/
 .DS_Store
 test-ledger/
 .anchor/
+scripts/node_modules/
