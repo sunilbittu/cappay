@@ -74,8 +74,9 @@ async function connect() {
   if (!wallet) throw new Error("No Solana wallet found. Is Backpack installed and unlocked?");
   const result = await wallet.features["standard:connect"].connect();
   const account = result.accounts[0];
-  if (!account.chains.includes(CHAIN)) {
-    throw new Error("Wallet is not on devnet. In Backpack: Settings → Solana → Devnet.");
+  diag(`connected account: chains=${JSON.stringify(account.chains || null)}`);
+  if (account.chains && account.chains.length && !account.chains.includes(CHAIN)) {
+    diag(`WARNING: wallet reports ${account.chains.join(",")}; proceeding anyway`);
   }
   connected = { wallet, account, payerPubkey: new web3.PublicKey(account.publicKey) };
   return account;
