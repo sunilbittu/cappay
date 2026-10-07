@@ -28,14 +28,24 @@ let connected = null; // { wallet, account }
 
 function acceptWallet(w) {
   if (w && w.features && w.features["standard:connect"]) eventWallet = w;
+  diag(`BP register-wallet fired (name=${w && w.name}); stored=${!!eventWallet}`);
 }
 
 // Backpack's CustomEvent protocol: listen, then signal app-ready.
 const BP_REGISTER_EVENT = "wallet-standard:register-wallet";
 window.addEventListener(BP_REGISTER_EVENT, (e) => {
-  try { e.detail({ register: acceptWallet }); } catch {}
+  try { e.detail({ register: acceptWallet }); } catch (err) { diag("BP register error: " + err.message); }
 });
 window.dispatchEvent(new CustomEvent("wallet-standard:app-ready"));
+
+// ---- On-page diagnostics (so a screenshot tells us everything) -------------
+const diagLines = [];
+function diag(msg) {
+  diagLines.push(`${new Date().toTimeString().slice(0, 8)} ${msg}`);
+  const el = document.getElementById("diag");
+  if (el) el.textContent = diagLines.slice(-6).join("\n");
+}
+window.addEventListener("error", (e) => diag("JS ERROR: " + e.message));
 
 function registerWallets() {
   if (walletsApi || !window.navigator.wallets) return false;
@@ -60,6 +70,7 @@ function getBackpack() {
 
 async function connect() {
   const wallet = getBackpack();
+  diag(`connect click: eventWallet=${!!eventWallet} walletsApi=${!!walletsApi} navigatorWallets=${typeof window.navigator.wallets}`);
   if (!wallet) throw new Error("No Solana wallet found. Is Backpack installed and unlocked?");
   const result = await wallet.features["standard:connect"].connect();
   const account = result.accounts[0];
