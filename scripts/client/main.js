@@ -97,18 +97,32 @@ async function signAndSend(transaction) {
     requireAllSignatures: false,
     verifySignatures: false,
   });
-  const { signature } = await feature.signAndSendTransaction({
+  const res = await feature.signAndSendTransaction({
     account: connected.account,
     transaction: txBytes,
     chain: CHAIN,
     options: { preflightCommitment: "confirmed" },
   });
-  // Blockheight-based polling: works over HTTP without a websocket endpoint.
-  await conn.confirmTransaction(
-    { signature, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
-    "confirmed"
-  );
+  const signature =
+    typeof res === "string" ? res : res.signature ?? res.signatures?.[0] ?? null;
+  if (!signature) throw new Error("Wallet returned no signature: " + JSON.stringify(res));
+  await pollSignature(signature);
   return signature;
+}
+
+async function pollSignature(signature) {
+  for (let i = 0; i < 40; i++) {
+    const st = await conn.getSignatureStatus(signature, {
+      searchTransactionHistory: true,
+    });
+    const v = st && st.value;
+    if (v && (v.confirmationStatus === "confirmed" || v.confirmationStatus === "finalized")) {
+      if (v.err) throw new Error("Transaction landed but failed: " + JSON.stringify(v.err));
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error("Confirmation timeout for " + signature);
 }
 
 // ---- Program instruction ---------------------------------------------------
