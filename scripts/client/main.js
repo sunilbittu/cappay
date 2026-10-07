@@ -197,6 +197,17 @@ function parseError(e) {
   return msg.split("\n")[0];
 }
 
+
+async function diagnoseSettled(transaction) {
+  try {
+    const sim = await conn.simulateTransaction(transaction);
+    const logs = (sim.value && sim.value.logs) || [];
+    return logs.some((l) => l.includes("OrderAlreadySettled")) ? "OrderAlreadySettled" : null;
+  } catch {
+    return null;
+  }
+}
+
 async function refreshPda(orderId) {
   try {
     const [pda] = web3.PublicKey.findProgramAddressSync(
@@ -238,7 +249,8 @@ async function doSubmit() {
   $("result").textContent = "Submitting one transaction…";
   try {
     const { ix } = settleIx(oid, amountLamports);
-    const sig = await signAndSend(buildTx(ix, connected.payerPubkey));
+    const tx = buildTx(ix, connected.payerPubkey);
+    const sig = await signAndSend(tx);
     showResult(
       true,
       "Transfer landed. Order settled on chain.",
@@ -246,7 +258,8 @@ async function doSubmit() {
       explorer(sig)
     );
   } catch (e) {
-    showResult(false, "Transaction failed on chain.", parseError(e));
+    const settled = await diagnoseSettled(tx);
+    showResult(false, "Transaction failed on chain.", settled || parseError(e));
   } finally {
     setBusy(false);
     refreshPda(oid);
@@ -276,11 +289,17 @@ async function doDoubleFire() {
     const failed = results.filter((r) => r.status === "rejected");
     const lines = [];
     for (const r of landed) lines.push(`LANDED: ${explorer(r.value)}`);
-    for (const r of failed) lines.push(`FAILED: ${parseError(r.reason)}`);
+    let settledDiagnosis = null;
+    if (failed.length) {
+      settledDiagnosis = await diagnoseSettled(buildTx(ix, connected.payerPubkey));
+      for (const r of failed) lines.push(`FAILED: ${settledDiagnosis || parseError(r.reason)}`);
+    }
     showResult(
       landed.length === 1 && failed.length === 1,
       landed.length === 1
         ? "Two racing submits, one landed transfer."
+        : landed.length === 0 && settledDiagnosis
+        ? "Both racing submits rejected — this order id was already settled. Use a fresh order id for the race test."
         : "Unexpected outcome — inspect below.",
       lines.join("\n"),
       landed.length ? explorer(landed[0].value) : null
