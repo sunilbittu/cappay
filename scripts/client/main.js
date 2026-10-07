@@ -27,8 +27,13 @@ let eventWallet = null;
 let connected = null; // { wallet, account }
 
 function acceptWallet(w) {
-  if (w && w.features && w.features["standard:connect"]) eventWallet = w;
-  diag(`BP register-wallet fired (name=${w && w.name}); stored=${!!eventWallet}`);
+  // Backpack registers one wallet object per chain (solana, evm, sui...).
+  // Keep only Solana-capable ones.
+  const solanaChains = ((w && w.chains) || []).filter((c) => c.startsWith("solana:"));
+  if (w && w.features && w.features["standard:connect"] && solanaChains.length) {
+    eventWallet = w;
+  }
+  diag(`register-wallet (name=${w && w.name}, chains=${JSON.stringify((w && w.chains) || [])}); solanaWallet=${!!eventWallet}`);
 }
 
 // Backpack's CustomEvent protocol: listen, then signal app-ready.
