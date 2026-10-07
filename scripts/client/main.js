@@ -18,11 +18,24 @@ const ORDER_ID_MAX_BYTES = 32;
 
 const conn = new web3.Connection(RPC, "confirmed");
 
-// ---- Wallet Standard (Backpack) ------------------------------------------
-// Backpack's content script may inject `navigator.wallets` AFTER this bundle
-// runs, so register immediately if present and otherwise poll briefly.
+// ---- Wallet Standard -------------------------------------------------------
+// Two registration paths:
+// 1. Modern: window.navigator.wallets (may inject after page load -> poll).
+// 2. Backpack 0.10.x: CustomEvent protocol ("wallet-standard:register-wallet").
 let walletsApi = null;
+let eventWallet = null;
 let connected = null; // { wallet, account }
+
+function acceptWallet(w) {
+  if (w && w.features && w.features["standard:connect"]) eventWallet = w;
+}
+
+// Backpack's CustomEvent protocol: listen, then signal app-ready.
+const BP_REGISTER_EVENT = "wallet-standard:register-wallet";
+window.addEventListener(BP_REGISTER_EVENT, (e) => {
+  try { e.detail({ register: acceptWallet }); } catch {}
+});
+window.dispatchEvent(new CustomEvent("wallet-standard:app-ready"));
 
 function registerWallets() {
   if (walletsApi || !window.navigator.wallets) return false;
@@ -40,6 +53,7 @@ setTimeout(() => clearInterval(walletsPoll), 15000);
 
 function getBackpack() {
   registerWallets(); // lazy retry at click time
+  if (eventWallet) return eventWallet;
   const wallets = walletsApi ? walletsApi.get() : [];
   return wallets.find((w) => w.name === "Backpack") || wallets[0] || null;
 }
@@ -52,7 +66,7 @@ async function connect() {
   if (!account.chains.includes(CHAIN)) {
     throw new Error("Wallet is not on devnet. In Backpack: Settings → Solana → Devnet.");
   }
-  connected = { wallet, account };
+  connected = { wallet, account, payerPubkey: new web3.PublicKey(account.publicKey) };
   return account;
 }
 
@@ -88,7 +102,7 @@ function settleIx(orderIdBytes, amountLamports) {
       keys: [
         { pubkey: orderPda, isSigner: false, isWritable: true },
         { pubkey: MERCHANT, isSigner: false, isWritable: false },
-        { pubkey: connected.account.publicKey, isSigner: true, isWritable: true },
+        { pubkey: connected.payerPubkey, isSigner: true, isWritable: true },
         { pubkey: RECIPIENT, isSigner: false, isWritable: true },
         { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
       ],
@@ -199,7 +213,7 @@ async function doSubmit() {
   $("result").textContent = "Submitting one transaction…";
   try {
     const { ix } = settleIx(oid, amountLamports);
-    const sig = await signAndSend(buildTx(ix, connected.account.publicKey));
+    const sig = await signAndSend(buildTx(ix, connected.payerPubkey));
     showResult(
       true,
       "Transfer landed. Order settled on chain.",
@@ -230,8 +244,8 @@ async function doDoubleFire() {
   try {
     const { ix } = settleIx(oid, amountLamports);
     const results = await Promise.allSettled([
-      signAndSend(buildTx(ix, connected.account.publicKey)),
-      signAndSend(buildTx(ix, connected.account.publicKey)),
+      signAndSend(buildTx(ix, connected.payerPubkey)),
+      signAndSend(buildTx(ix, connected.payerPubkey)),
     ]);
     const landed = results.filter((r) => r.status === "fulfilled");
     const failed = results.filter((r) => r.status === "rejected");
