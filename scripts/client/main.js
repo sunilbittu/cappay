@@ -19,16 +19,27 @@ const ORDER_ID_MAX_BYTES = 32;
 const conn = new web3.Connection(RPC, "confirmed");
 
 // ---- Wallet Standard (Backpack) ------------------------------------------
+// Backpack's content script may inject `navigator.wallets` AFTER this bundle
+// runs, so register immediately if present and otherwise poll briefly.
 let walletsApi = null;
 let connected = null; // { wallet, account }
 
-if (window.navigator.wallets) {
+function registerWallets() {
+  if (walletsApi || !window.navigator.wallets) return false;
   window.navigator.wallets.add({ version: "1.0.0" }, (api) => {
     walletsApi = api;
   });
+  return true;
 }
 
+registerWallets();
+const walletsPoll = setInterval(() => {
+  if (registerWallets()) clearInterval(walletsPoll);
+}, 250);
+setTimeout(() => clearInterval(walletsPoll), 15000);
+
 function getBackpack() {
+  registerWallets(); // lazy retry at click time
   const wallets = walletsApi ? walletsApi.get() : [];
   return wallets.find((w) => w.name === "Backpack") || wallets[0] || null;
 }
