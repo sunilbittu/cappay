@@ -89,9 +89,9 @@ async function connect() {
 
 async function signAndSend(transaction) {
   const feature = connected.wallet.features["solana:signAndSendTransaction"];
+  const latest = await conn.getLatestBlockhash("confirmed");
   if (!transaction.recentBlockhash) {
-    const { blockhash } = await conn.getLatestBlockhash("confirmed");
-    transaction.recentBlockhash = blockhash;
+    transaction.recentBlockhash = latest.blockhash;
   }
   const txBytes = transaction.serialize({
     requireAllSignatures: false,
@@ -103,7 +103,11 @@ async function signAndSend(transaction) {
     chain: CHAIN,
     options: { preflightCommitment: "confirmed" },
   });
-  await conn.confirmTransaction(signature, "confirmed");
+  // Blockheight-based polling: works over HTTP without a websocket endpoint.
+  await conn.confirmTransaction(
+    { signature, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
+    "confirmed"
+  );
   return signature;
 }
 
